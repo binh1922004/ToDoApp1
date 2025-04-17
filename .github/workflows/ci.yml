@@ -1,17 +1,55 @@
-name: CI for Demo
+name: CI + Jira + Slack Demo
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
-    branches:
-      - main
+    types: [opened, synchronize, reopened, closed]
 
 jobs:
-  build:
+  ci_build:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Run fake CI
-        run: bash hello.sh
+      - name: Run fake build (CI)
+        run: |
+          echo "🔧 Running fake build..."
+          sleep 1
+          echo "✅ Build success!"
+
+  jira_and_slack:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract Jira issue key from PR title
+        id: extract
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          if [[ "$TITLE" =~ ([A-Z]+-[0-9]+) ]]; then
+            echo "Found issue key: ${BASH_REMATCH[1]}"
+            echo "issue_key=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+          else
+            echo "No issue key found in PR title."
+            echo "issue_key=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update Jira issue status
+        if: steps.extract.outputs.issue_key != ''
+        run: |
+          curl --request POST \
+            --url "${{ secrets.JIRA_BASE_URL }}/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}/transitions" \
+            --user "${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}" \
+            --header 'Content-Type: application/json' \
+            --data '{
+              "transition": { "id": "31" }
+            }'
+        # 🔁 Bạn nên thay "31" bằng transition ID tương ứng với trạng thái "Done" của bạn.
+
+      - name: Send Slack notification
+        if: steps.extract.outputs.issue_key != ''
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data "{
+            \"text\": \"✅ Issue *${{ steps.extract.outputs.issue_key }}* đã được đóng sau khi merge PR: *${{ github.event.pull_request.title }}*\"
+          }" ${{ secrets.SLACK_WEBHOOK_URL }}
