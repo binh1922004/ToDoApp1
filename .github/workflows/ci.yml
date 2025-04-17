@@ -42,7 +42,7 @@ jobs:
             --user "${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}" \
             --header 'Content-Type: application/json' \
             --data '{
-              "transition": { "id": "31" }
+              "transition": { "id": "41" }
             }'
         # 🔁 Bạn nên thay "31" bằng transition ID tương ứng với trạng thái "Done" của bạn.
 
